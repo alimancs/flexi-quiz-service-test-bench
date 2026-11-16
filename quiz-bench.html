@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quiz Bench</title>
+<style>
+:root{--bg:#f2f4f3;--ink:#16211d;--mut:#66736d;--line:#d5dbd8;--card:#fff;--ac:#0d6b57;--acf:#fff;--bad:#b3261e;--ok:#1b7f3b}
+@media(prefers-color-scheme:dark){:root{--bg:#121816;--ink:#e6ece9;--mut:#8b9a93;--line:#2a3430;--card:#1a221f;--ac:#47c2a5;--acf:#0c1512;--bad:#ff8a80;--ok:#6fdc8c}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);display:grid;grid-template-columns:170px minmax(0,1fr);grid-template-rows:auto 1fr auto;min-height:100vh}
+header{grid-column:1/3;display:flex;gap:14px;align-items:center;padding:10px 20px;border-bottom:1px solid var(--line)}
+header b{font-size:17px;letter-spacing:.2px}header input{flex:1;max-width:340px;font-family:ui-monospace,monospace;font-size:13px}
+nav{padding:14px 0}nav a{display:block;padding:8px 20px;color:var(--mut);text-decoration:none}
+nav a.on{color:var(--ink);font-weight:600;box-shadow:inset 3px 0 var(--ac)}
+main{padding:18px 28px 90px;max-width:980px}
+h2{margin:0 0 6px;font-size:22px}h3{margin:26px 0 4px;font-size:16px}
+.tag{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:1px 9px;margin-left:8px;color:var(--mut);vertical-align:middle}
+a{color:var(--ac)}.mut{color:var(--mut)}
+input,select,textarea{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:inherit;max-width:100%}
+textarea{width:100%;font-family:ui-monospace,monospace;font-size:13px}
+button,.b{font:inherit;padding:7px 14px;border-radius:6px;border:1px solid var(--ac);background:var(--ac);color:var(--acf);cursor:pointer;text-decoration:none;display:inline-block}
+.g{background:transparent;color:var(--ac)}.tw .g,.tw .b{padding:3px 9px;margin-right:6px;font-size:13px}.tw .b{background:transparent;color:var(--ac)}
+button:disabled{opacity:.4;cursor:default}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;align-items:center}.w{flex:1;min-width:160px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:10px 0}
+.grid label{display:grid;gap:3px;font-size:13px;color:var(--mut)}
+.ck{display:flex;gap:6px;align-items:center}
+.tw{overflow-x:auto;margin:10px 0}table{border-collapse:collapse;width:100%;background:var(--card);border:1px solid var(--line)}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:13px;color:var(--mut);font-weight:600}
+pre{background:var(--card);border:1px solid var(--line);padding:12px;overflow:auto;border-radius:6px;font:12.5px/1.45 ui-monospace,monospace;white-space:pre-wrap;word-break:break-word}pre:empty{display:none}
+.chip{border:1px solid var(--line);padding:2px 12px;border-radius:99px;background:var(--card)}
+.q{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}.q label{display:flex;gap:8px;margin-top:6px}
+footer{grid-column:1/3;position:sticky;bottom:0;background:var(--card);border-top:1px solid var(--line)}
+#ct{width:100%;text-align:left;background:none;color:var(--ink);border:0;border-radius:0;padding:8px 20px;font:13px ui-monospace,monospace}
+#cl{display:none;max-height:42vh;overflow:auto;padding:0 20px 10px;font:12.5px ui-monospace,monospace}.cx #cl{display:block}
+#cl summary{cursor:pointer;padding:3px 0}#cl pre{margin:4px 0 8px}.ok{color:var(--ok);font-style:normal}.bad{color:var(--bad);font-style:normal}
+#ts{position:fixed;right:16px;bottom:58px;background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:6px;display:none;max-width:70vw}
+@media(max-width:700px){body{grid-template-columns:1fr}header,footer{grid-column:1}nav{display:flex;overflow-x:auto;padding:0}nav a{padding:10px 14px}nav a.on{box-shadow:inset 0 -3px var(--ac)}main{padding:14px}}
+@media(prefers-reduced-motion:no-preference){button{transition:opacity .15s}}
+</style></head><body>
+<header><b>Quiz Bench</b><input id="bu" aria-label="Server URL" onchange="setBase(this.value)"></header>
+<nav><a href="#topics">Topics</a><a href="#questions">Questions</a><a href="#exams">Exams</a><a href="#students">Students</a><a href="#attempts">Attempts</a></nav>
+<main id="main"></main>
+<footer><button id="ct" onclick="document.body.classList.toggle('cx')">Network log <span id="cc"></span></button><div id="cl"></div></footer>
+<div id="ts" role="status"></div>
+<script>
+const $=(s,r=document)=>r.querySelector(s),E=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),v=i=>$('#'+i).value;
+let base='http://localhost:8080';try{base=localStorage.getItem('qb')||base}catch{}
+const logs=[];
+function setBase(x){base=x.trim().replace(/\/$/,'');try{localStorage.setItem('qb',base)}catch{}render()}
+function toast(m,bad){const t=$('#ts');t.textContent=m;t.style.display='block';t.style.background=bad?'var(--bad)':'var(--ink)';clearTimeout(t.h);t.h=setTimeout(()=>t.style.display='none',3500)}
+const show=d=>{const o=$('#out');if(o)o.textContent=typeof d=='string'?d:JSON.stringify(d,null,2)};
+const go=fn=>Promise.resolve().then(fn).catch(e=>{if(!(e&&'st' in e))toast(e.message||String(e),1)});
+const redo=async d=>{await render();show(d)};
+async function api(m,p,b){
+ const u=base+'/api/v1'+p,t=performance.now(),o={method:m};let st=0,d;
+ if(b!==undefined){o.headers={'Content-Type':'application/json'};o.body=JSON.stringify(b)}
+ try{const r=await fetch(u,o);st=r.status;const x=await r.text();try{d=JSON.parse(x)}catch{d=x}}
+ catch(e){d='Network error: '+e.message+'. Check that the server is running and CORS allows this origin.'}
+ logs.unshift({m,u,b,st,d,ms:Math.round(performance.now()-t)});logs.length=Math.min(logs.length,40);drawLog();
+ if(st<200||st>=300){toast((st||'ERR')+' '+m+' '+p,1);show((st||'ERR')+'\n'+(typeof d=='string'?d:JSON.stringify(d,null,2)));throw{st,d}}
+ return d;
+}
+function drawLog(){
+ const l=logs[0];$('#cc').textContent=l?`(${l.m} ${l.st||'ERR'})`:'';
+ $('#cl').innerHTML=logs.map(l=>`<details><summary><b>${l.m}</b> ${E(l.u.replace(base,''))} <i class="${l.st>=200&&l.st<300?'ok':'bad'}">${l.st||'ERR'}</i> ${l.ms}ms</summary><pre>${E((l.b!==undefined?'Request\n'+JSON.stringify(l.b,null,1)+'\n\n':'')+'Response\n'+(typeof l.d=='string'?l.d:JSON.stringify(l.d,null,1)))}</pre></details>`).join('')||'<span class=mut>Requests will appear here.</span>';
+}
+const tbl=(h,r)=>r.length?`<div class=tw><table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${r.map(a=>`<tr>${a.map(c=>`<td>${c??''}</td>`).join('')}</tr>`).join('')}</table></div>`:'<p class=mut>Nothing here yet.</p>';
+const gt=r=>r.length?tbl(Object.keys(r[0]).map(E),r.map(o=>Object.values(o).map(x=>E(x&&typeof x=='object'?JSON.stringify(x):x)))):'<p class=mut>No rows returned.</p>';
+const opts=T=>T.map(t=>`<option value=${t.id}>${E(t.name)}`).join('');
+const chips=(r,a)=>{$('#res').innerHTML='<div class=row>'+Object.entries(r||{}).filter(([k,x])=>typeof x=='number'&&(a||/score|correct|wrong|unanswered/i.test(k))).map(([k,x])=>`<span class=chip>${E(k)}: <b>${x}</b></span>`).join('')+'</div>'};
+const loc=ms=>new Date(Date.now()+ms-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16);
+const topicsList=async()=>(await api('GET','/topics')).topics||[];
+
+async function render(){
+ const [r,id]=(location.hash||'#topics').slice(1).split('/');$('#bu').value=base;
+ document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.getAttribute('href')=='#'+(r=='exam'?'exams':r)));
+ await go(()=>({topics:vTopics,questions:vQuestions,exams:vExams,exam:()=>vExam(id),students:vStudents,attempts:vAttempts}[r]||vTopics)());
+}
+
+/* Topics */
+async function vTopics(){
+ const t=await topicsList();
+ $('#main').innerHTML=`<h2>Topics</h2><div class=row><input id=tn placeholder="Name"><input id=td class=w placeholder="Description"><button onclick="go(addTopic)">Create topic</button></div>`+
+ tbl(['ID','Name','Description',''],t.map(x=>[x.id,E(x.name),E(x.description),`<button class=g onclick="go(()=>upd(${x.id},'name','newName','New name'))">Rename</button><button class=g onclick="go(()=>upd(${x.id},'desc','newDesc','New description'))">Edit description</button>`]))+'<pre id=out></pre>';
+}
+const addTopic=async()=>redo(await api('POST','/topics',{name:v('tn'),description:v('td')}));
+async function upd(id,sub,key,label){const n=prompt(label);if(!n)return;return redo(await api('PUT',`/topics/${id}/${sub}`,{[key]:n}))}
+
+/* Questions */
+let QS={t:'',q:'',s:5,p:0};
+async function vQuestions(){
+ const T=await topicsList();if(!QS.t&&T[0])QS.t=T[0].id;
+ $('#main').innerHTML=`<h2>Questions</h2><div class=row><select id=qt>${opts(T)}</select><input id=qq class=w placeholder="Exact text match (optional)" value="${E(QS.q)}"><input id=qs type=number min=1 value=${QS.s} style="width:70px" aria-label="Page size"><button onclick="go(()=>qList(0))">List questions</button></div><div id=ql></div>
+ <h3>Create question</h3><div class=row><input id=nt class=w placeholder="Question text"><button onclick="go(addQ)">Create in selected topic</button></div>
+ <h3>Find by ID</h3><div class=row><input id=gid type=number placeholder="Question ID"><button class=g onclick="go(()=>showQ(v('gid')))">Get question</button></div><pre id=out></pre>`;
+ if(QS.t){$('#qt').value=QS.t;await qList(QS.p)}else $('#ql').innerHTML='<p class=mut>Create a topic first, then add questions to it.</p>';
+}
+async function qList(p){
+ QS={t:v('qt'),q:v('qq'),s:+v('qs')||5,p};
+ const d=await api('GET',`/questions?topicId=${QS.t}&page=${p}&size=${QS.s}`+(QS.q?'&q='+encodeURIComponent(QS.q):'')),c=d.content||[];
+ $('#ql').innerHTML=tbl(['ID','Text','Difficulty',''],c.map(x=>[x.id,E(x.text),E(x.difficulty),`<button class=g onclick="go(()=>showQ(${x.id}))">View</button><button class=g onclick="go(()=>editQ(${x.id}))">Edit</button><button class=g onclick="go(()=>delQ(${x.id}))">Delete</button>`]))+
+ `<div class=row><button class=g ${p<1?'disabled':''} onclick="go(()=>qList(${p-1}))">Previous</button><span>Page ${p+1} of ${d.totalPages||1}</span><button class=g ${d.last?'disabled':''} onclick="go(()=>qList(${p+1}))">Next</button></div>`;
+}
+const showQ=async id=>show(await api('GET','/questions/'+id));
+const addQ=async()=>redo(await api('POST','/questions',{text:v('nt'),topic:{id:+v('qt')}}));
+async function editQ(id){const n=prompt('New question text');if(!n)return;return redo(await api('PUT','/questions/'+id,n))}
+async function delQ(id){if(!confirm('Delete question '+id+'?'))return;return redo(await api('DELETE','/questions/'+id))}
+
+/* Exams */
+async function vExams(){
+ const d=await api('GET','/exams'),L=Array.isArray(d)?d:d.exams||[];
+ $('#main').innerHTML=`<h2>Exams</h2>`+tbl(['ID','Title','Status','Minutes','Max attempts',''],L.map(x=>[x.id,E(x.title),E(x.examStatus||x.status),Math.round(x.durationSeconds/60),x.maxAttempts,`<a class=b href="#exam/${x.id}">Open</a><button class=g onclick="go(()=>pub(${x.id}))">Publish</button><button class=g onclick="go(()=>delE(${x.id}))">Delete</button>`]))+
+ `<h3>Create exam</h3><div class=grid>
+ <label>Title<input id=et></label><label>Duration (seconds)<input id=ed type=number value=1800></label>
+ <label>Opens<input id=eo type=datetime-local value="${loc(0)}"></label><label>Closes<input id=ec type=datetime-local value="${loc(864e5)}"></label>
+ <label>Max attempts<input id=em type=number value=1></label><label>Score per question<input id=es type=number value=1></label>
+ <label>Penalty per wrong<input id=ep type=number value=0></label><label>Created by<input id=eb value="teacher-1"></label>
+ <label>Status<select id=ex><option>DRAFT<option>PUBLISHED<option>CLOSED</select></label><label class=ck><input id=en type=checkbox>Negative marking</label></div>
+ <div class=row><button onclick="go(addE)">Create exam</button></div><pre id=out></pre>`;
+}
+const addE=async()=>redo(await api('POST','/exams',{title:v('et'),durationSeconds:+v('ed'),opensAt:new Date(v('eo')).toISOString(),closesAt:new Date(v('ec')).toISOString(),maxAttempts:+v('em'),negativeMarking:$('#en').checked,penaltyPerWrong:+v('ep'),examStatus:v('ex'),createdBy:v('eb'),scorePerQuestion:+v('es')}));
+const pub=async id=>redo(await api('POST',`/exams/${id}/publish`));
+async function delE(id,back){if(!confirm('Delete exam '+id+'?'))return;const d=await api('DELETE','/exams/'+id);if(back)location.hash='#exams';else return redo(d)}
+async function vExam(id){
+ const [x,T]=await Promise.all([api('GET','/exams/'+id),topicsList()]);
+ $('#main').innerHTML=`<p><a href="#exams">All exams</a></p><h2>${E(x.title)}<span class=tag>ID ${id}</span><span class=tag>${E(x.examStatus||x.status)}</span></h2>
+ <div class=row><button onclick="go(()=>pub(${id}))">Publish</button><button class=g onclick="go(()=>board(${id}))">Leaderboard</button><button class=g onclick="go(()=>stats(${id}))">Topic analytics</button><button class=g onclick="go(()=>delE(${id},1))">Delete exam</button></div><div id=res></div>
+ <h3>Add a question</h3><div class=row><input id=aq class=w placeholder="Question text"><select id=at aria-label="Topic">${opts(T)}</select><select id=ad aria-label="Difficulty"><option value="">No difficulty<option>EASY<option>AVERAGE<option>HARD</select></div>
+ ${['A','B','C','D'].map(l=>`<div class=row><b>${l}</b><input id=o${l} class=w placeholder="Option ${l}"><label class=ck><input type=radio name=ok value=${l}>Correct</label></div>`).join('')}
+ <div class=row><button onclick="go(()=>addEQ(${id}))">Add to exam</button></div><pre id=out></pre>`;
+}
+async function addEQ(id){
+ const k=document.querySelector('input[name=ok]:checked')?.value,q={text:v('aq'),topic:{id:+v('at')}};if(v('ad'))q.difficulty=v('ad');
+ const o=['A','B','C','D'].filter(l=>v('o'+l).trim()).map(l=>({text:v('o'+l),label:l,isCorrect:k==l}));
+ const d=await api('PUT',`/exams/${id}/questions`,{question:q,options:o});['aq','oA','oB','oC','oD'].forEach(i=>$('#'+i).value='');show(d);
+}
+async function board(id){const d=await api('GET',`/exams/${id}/leaderboard`);$('#res').innerHTML='<h3>Leaderboard</h3>'+gt(d.positions||[])}
+async function stats(id){const d=await api('GET',`/exams/${id}/analytics/topics`);chips({...d.attempts,...d.scores},1);$('#res').insertAdjacentHTML('beforeend','<h3>Topics</h3>'+gt(d.topics||[]))}
+
+/* Students */
+function vStudents(){
+ $('#main').innerHTML=`<h2>Students</h2><div class=row><input id=sn placeholder="Full name"><input id=se placeholder="Email"><input id=sp type=password placeholder="Password"><button onclick="go(addS)">Create student</button></div>
+ <div class=row><input id=si type=number placeholder="Student ID"><button class=g onclick="go(async()=>show(await api('GET','/students/'+v('si'))))">Get student</button><button class=g onclick="go(attS)">List attempts</button></div><div id=res></div><pre id=out></pre>`;
+}
+async function addS(){const d=await api('POST','/students',{fullname:v('sn'),email:v('se'),password:v('sp')});show(d);$('#si').value=d.student?.id??''}
+async function attS(){const d=await api('GET',`/students/${v('si')}/attempts`);$('#res').innerHTML=gt(d.attempts||[])}
+
+/* Attempts */
+let ANS={};
+function vAttempts(){
+ ANS={};
+ $('#main').innerHTML=`<h2>Attempts</h2><h3>Start an attempt</h3>
+ <div class=row><input id=xe type=number placeholder="Exam ID"><input id=xs type=number placeholder="Student ID"><button onclick="go(start)">Start attempt</button></div>
+ <label class=ck><input id=sw type=checkbox checked>Question ID comes back as examQuestionId (swapped in the current DTO)</label>
+ <p class=mut>The current start route never saves the attempt, so it fails until the controller is fixed. You can still test the other routes below with an attempt ID from the database.</p>
+ <div id=qz></div><h3>Work with an attempt</h3>
+ <div class=row><input id=ai type=number placeholder="Attempt ID"><button class=g onclick="go(()=>one(''))">Get attempt</button><button class=g onclick="go(()=>one('/result'))">Result</button><button class=g onclick="go(()=>one('/analytics/topics'))">Topic analytics</button></div>
+ <textarea id=an rows=5 spellcheck=false>{"answers":[{"questionId":0,"selectedOptionId":0}]}</textarea>
+ <div class=row><button onclick="go(()=>send('PUT','/answers'))">Save answers</button><button onclick="go(()=>send('POST','/submit'))">Submit attempt</button></div><div id=res></div><pre id=out></pre>`;
+}
+async function start(){
+ const r=await api('POST',`/exams/${v('xe')}/attempts`,{studentId:+v('xs')});
+ $('#ai').value=r.attemptId??r.attempId??r.id??'';ANS={};
+ $('#qz').innerHTML=`<p class=mut>Token ${E(r.token)}, expires ${E(r.expiresAt)}</p>`+(r.questions||r.examQuestions||[]).map(q=>{const i=$('#sw').checked?q.examQuestionId:q.questionId;
+  return `<div class=q><b>${E(q.text)}</b>${(q.options||[]).map(o=>`<label><input type=radio name="q${i}" onchange="pick(${i},${o.id})">${E(o.label)}. ${E(o.text)}</label>`).join('')}</div>`}).join('');
+ show(r);
+}
+function pick(q,o){ANS[q]=o;$('#an').value=JSON.stringify({answers:Object.entries(ANS).map(([k,x])=>({questionId:+k,selectedOptionId:x}))},null,1)}
+async function one(s){const d=await api('GET',`/attempts/${v('ai')}${s}`);chips(d.result||d);show(d)}
+async function send(m,p){const d=await api(m,`/attempts/${v('ai')}${p}`,JSON.parse(v('an')));chips(d.result);show(d)}
+
+onhashchange=render;drawLog();render();
+</script></body></html>
